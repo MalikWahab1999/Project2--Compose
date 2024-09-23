@@ -1,0 +1,43 @@
+version: '3.8'
+
+#This defines the services that we are going to manage in this we have two services docker and jenkins
+services:
+#defines the docker in docker
+  dind:
+    image: docker:20.10-dind
+    privileged: true # Required for DinD to run inside a container This is for the elevated privileges
+    environment:     #we are going to use certs in order for us to do secure communication
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:   #This is for the data storation we are also going to store the certs
+      - dind-storage:/var/lib/docker
+      - certs-client:/certs/client
+    networks: #defining the network
+      - jenkins-net
+
+  # Now we are goign to write to run jenkins services inside this container
+  jenkins:
+    image: jenkins/jenkins:lts #giving the image name
+    user: root # Ensures Jenkins can run Docker commands
+    environment:
+      - DOCKER_HOST=tcp://dind:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    volumes: #for data storage
+      - jenkins-data:/var/jenkins_home
+      - certs-client:/certs/client:ro
+      - /var/run/docker.sock:/var/run/docker.sock # Allows Jenkins to use host Docker
+    ports:  #here we are going to define the ports 
+      - "8080:8080" #this is the port on which our jenkins will be running
+      - "50000:50000"
+    networks:
+      - jenkins-net #network name
+    depends_on:
+      - dind # Ensures the DinD service starts before Jenkins
+
+volumes:
+  jenkins-data: #for jenkins data
+  dind-storage: #for docker in docker data
+  certs-client: #for client certs
+
+networks:
+  jenkins-net:
